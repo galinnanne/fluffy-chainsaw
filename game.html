@@ -1,0 +1,404 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Projet: Échos du Passé (Prototype N64)</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        body { margin: 0; overflow: hidden; background-color: #000; font-family: 'Courier New', Courier, monospace; }
+        #ui-layer {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;
+            display: flex; flex-direction: column; justify-content: space-between;
+        }
+        #hud-top { padding: 20px; display: flex; gap: 10px; }
+        .heart { width: 30px; height: 30px; background-color: #d32f2f; transform: rotate(45deg); display: inline-block; box-shadow: 2px 2px 0 #550000; }
+        .heart::before, .heart::after {
+            content: ""; position: absolute; width: 30px; height: 30px; background-color: #d32f2f; border-radius: 50%;
+        }
+        .heart::before { top: -15px; left: 0; }
+        .heart::after { top: 0; left: -15px; }
+
+        #dialogue-box {
+            align-self: center; margin-bottom: 50px; width: 80%; background: rgba(0, 0, 0, 0.8);
+            border: 4px solid #fff; padding: 20px; color: #fff; font-size: 18px; display: none;
+            text-shadow: 2px 2px 0 #000;
+        }
+        #controls-hint {
+            position: absolute; bottom: 10px; right: 10px; color: rgba(255,255,255,0.5); font-size: 12px; text-align: right;
+        }
+        #interaction-prompt {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            background: rgba(0,0,0,0.7); color: lime; padding: 10px; border-radius: 5px; display: none; font-weight: bold;
+        }
+        .key { border: 1px solid white; padding: 2px 5px; border-radius: 3px; font-weight: bold; }
+
+        /* Scanline effect for N64 retro feel */
+        #scanlines {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; pointer-events: none;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%);
+            background-size: 100% 4px; z-index: 10;
+        }
+    </style>
+</head>
+<body>
+
+<div id="scanlines"></div>
+<div id="ui-layer">
+    <div id="hud-top">
+        <div class="heart"></div>
+        <div class="heart"></div>
+        <div class="heart"></div>
+    </div>
+    <div id="interaction-prompt">Appuyez sur <span class="key">E</span> pour interagir</div>
+    <div id="dialogue-box"></div>
+    <div id="controls-hint">
+        ZQSD / WASD : Bouger<br>
+        SOURIS : Caméra<br>
+        CLIC GAUCHE : Attaquer<br>
+        E : Interagir
+    </div>
+</div>
+
+<script>
+    // --- CONFIGURATION & GLOBALS ---
+    const scene = new THREE.Scene();
+    scene.background = new THREE.Color(0x87CEEB); // Ciel bleu style N64
+    scene.fog = new THREE.Fog(0x87CEEB, 10, 60); // Brouillard de distance pour cacher le clipping
+
+    const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+    const renderer = new THREE.WebGLRenderer({ antialias: false }); // False pour effet pixelisé
+    renderer.setSize(window.innerWidth, window.innerHeight);
+    renderer.shadowMap.enabled = true;
+    document.body.appendChild(renderer.domElement);
+
+    // --- GAME STATE ---
+    let gameState = {
+        canMove: true,
+        dialogueOpen: false,
+        questStarted: false,
+        hasSword: false
+    };
+
+    // --- LUMIÈRE ---
+    const ambientLight = new THREE.AmbientLight(0xffffff, 0.6);
+    scene.add(ambientLight);
+    const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+    dirLight.position.set(50, 100, 50);
+    dirLight.castShadow = true;
+    dirLight.shadow.camera.left = -50;
+    dirLight.shadow.camera.right = 50;
+    dirLight.shadow.camera.top = 50;
+    dirLight.shadow.camera.bottom = -50;
+    scene.add(dirLight);
+
+    // --- MATÉRIAUX RETRO ---
+    const grassMat = new THREE.MeshLambertMaterial({ color: 0x4caf50 });
+    const heroMat = new THREE.MeshPhongMaterial({ color: 0x2e7d32 }); // Tunique verte
+    const rockMat = new THREE.MeshLambertMaterial({ color: 0x8d6e63 });
+    const woodMat = new THREE.MeshLambertMaterial({ color: 0x5d4037 });
+    const swordMat = new THREE.MeshStandardMaterial({ color: 0xc0c0c0, metalness: 0.8, roughness: 0.2 });
+
+    // --- MONDE ---
+    // Sol
+    const groundGeo = new THREE.PlaneGeometry(200, 200);
+    const ground = new THREE.Mesh(groundGeo, grassMat);
+    ground.rotation.x = -Math.PI / 2;
+    ground.receiveShadow = true;
+    scene.add(ground);
+
+    // Décors (Arbres Low Poly)
+    function createTree(x, z) {
+        const trunkGeo = new THREE.CylinderGeometry(0.5, 0.8, 3, 6);
+        const trunk = new THREE.Mesh(trunkGeo, woodMat);
+        trunk.position.set(x, 1.5, z);
+        trunk.castShadow = true;
+
+        const leavesGeo = new THREE.ConeGeometry(3, 6, 8); // Low poly cone
+        const leaves = new THREE.Mesh(leavesGeo, new THREE.MeshLambertMaterial({color: 0x1b5e20}));
+        leaves.position.set(0, 3.5, 0);
+        trunk.add(leaves);
+
+        scene.add(trunk);
+        return trunk;
+    }
+
+    // Génération procédurale basique de forêt
+    const trees = [];
+    for(let i=0; i<40; i++) {
+        const x = (Math.random() - 0.5) * 100;
+        const z = (Math.random() - 0.5) * 100;
+        if(Math.abs(x) > 10 || Math.abs(z) > 10) { // Laisser le centre vide
+            trees.push(createTree(x, z));
+        }
+    }
+
+    // --- PERSONNAGE (HÉROS) ---
+    const playerGroup = new THREE.Group();
+    // Corps
+    const bodyGeo = new THREE.BoxGeometry(1, 1.8, 0.6);
+    const body = new THREE.Mesh(bodyGeo, heroMat);
+    body.position.y = 0.9;
+    body.castShadow = true;
+    playerGroup.add(body);
+
+    // Tête
+    const headGeo = new THREE.BoxGeometry(0.7, 0.7, 0.7);
+    const head = new THREE.Mesh(headGeo, new THREE.MeshLambertMaterial({color: 0xffcc80})); // Peau
+    head.position.y = 2.1;
+    playerGroup.add(head);
+
+    // Bonnet
+    const hatGeo = new THREE.ConeGeometry(0.4, 1.5, 4);
+    const hat = new THREE.Mesh(hatGeo, heroMat);
+    hat.rotation.x = -0.5;
+    hat.position.set(0, 2.6, -0.3);
+    playerGroup.add(hat);
+
+    // Épée (Main) - Cachée au début
+    const swordGeo = new THREE.BoxGeometry(0.1, 1.5, 0.3);
+    const sword = new THREE.Mesh(swordGeo, swordMat);
+    sword.position.set(0.6, 1.5, 0.5);
+    sword.rotation.x = Math.PI / 2;
+    sword.visible = false;
+    playerGroup.add(sword);
+
+    scene.add(playerGroup);
+
+    // --- PNJ (GORON) ---
+    const goronGroup = new THREE.Group();
+    goronGroup.position.set(10, 0, -10);
+
+    // Corps rond
+    const goronBodyGeo = new THREE.DodecahedronGeometry(1.5);
+    const goronBody = new THREE.Mesh(goronBodyGeo, rockMat);
+    goronBody.position.y = 1.5;
+    goronBody.castShadow = true;
+    goronGroup.add(goronBody);
+
+    scene.add(goronGroup);
+
+    // --- OBJET (Coffre/Épée) ---
+    const itemGroup = new THREE.Group();
+    itemGroup.position.set(-15, 0.5, -5);
+    const chestGeo = new THREE.BoxGeometry(1.5, 1, 1);
+    const chest = new THREE.Mesh(chestGeo, new THREE.MeshPhongMaterial({color: 0xffd700})); // Or
+    itemGroup.add(chest);
+    scene.add(itemGroup);
+
+
+    // --- CONTRÔLES ---
+    let moveForward = false;
+    let moveBackward = false;
+    let moveLeft = false;
+    let moveRight = false;
+    let rotX = 0;
+    let rotY = 0;
+
+    // Camera follow vars
+    let cameraOffset = new THREE.Vector3(0, 5, 8);
+    let cameraLerp = 0.1;
+
+    document.addEventListener('keydown', (event) => {
+        if (!gameState.canMove) {
+            if (event.code === 'KeyE' && gameState.dialogueOpen) closeDialogue();
+            return;
+        }
+        switch (event.code) {
+            case 'ArrowUp':
+            case 'KeyW': moveForward = true; break;
+            case 'ArrowLeft':
+            case 'KeyA': moveLeft = true; break;
+            case 'ArrowDown':
+            case 'KeyS': moveBackward = true; break;
+            case 'ArrowRight':
+            case 'KeyD': moveRight = true; break;
+            case 'KeyE': checkInteraction(); break;
+        }
+    });
+
+    document.addEventListener('keyup', (event) => {
+        switch (event.code) {
+            case 'ArrowUp':
+            case 'KeyW': moveForward = false; break;
+            case 'ArrowLeft':
+            case 'KeyA': moveLeft = false; break;
+            case 'ArrowDown':
+            case 'KeyS': moveBackward = false; break;
+            case 'ArrowRight':
+            case 'KeyD': moveRight = false; break;
+        }
+    });
+
+    // Capture souris pour rotation caméra
+    document.body.addEventListener('click', () => {
+        document.body.requestPointerLock();
+    });
+
+    document.addEventListener('mousemove', (event) => {
+        if (document.pointerLockElement === document.body && gameState.canMove) {
+            rotY -= event.movementX * 0.005;
+            // Limiter la vue verticale
+            rotX -= event.movementY * 0.005;
+            rotX = Math.max(-0.5, Math.min(0.5, rotX));
+        }
+    });
+
+    document.addEventListener('mousedown', (event) => {
+        if (gameState.hasSword && gameState.canMove && document.pointerLockElement === document.body) {
+            attack();
+        }
+    });
+
+    // --- SYSTÈME DE JEU ---
+
+    function attack() {
+        if(sword.visible) {
+            // Animation simple d'attaque
+            let frame = 0;
+            const originalRot = sword.rotation.x;
+            gameState.canMove = false;
+
+            const animateAttack = () => {
+                frame++;
+                sword.rotation.x -= 0.3;
+                sword.rotation.z -= 0.1;
+
+                if (frame < 10) {
+                    requestAnimationFrame(animateAttack);
+                } else {
+                    // Reset
+                    sword.rotation.x = originalRot;
+                    sword.rotation.z = 0;
+                    gameState.canMove = true;
+                }
+            };
+            animateAttack();
+        }
+    }
+
+    function checkInteraction() {
+        const playerPos = playerGroup.position;
+
+        // Goron
+        if (playerPos.distanceTo(goronGroup.position) < 4) {
+            if (!gameState.hasSword) {
+                showDialogue("GORON", "Hey, petit ! Il y a des monstres plus loin. Tu ne devrais pas y aller sans arme. Cherche le coffre doré près des arbres morts.");
+                gameState.questStarted = true;
+            } else {
+                showDialogue("GORON", "Oh ! Une belle épée. Tu es prêt pour l'aventure maintenant. Direction le Temple de la Forêt !");
+            }
+        }
+
+        // Coffre
+        if (playerPos.distanceTo(itemGroup.position) < 3) {
+            if (!gameState.hasSword) {
+                gameState.hasSword = true;
+                sword.visible = true;
+                itemGroup.visible = false; // Coffre ouvert/disparu
+                showDialogue("SYSTÈME", "Vous avez trouvé l'Épée Kokiri ! (Clic Gauche pour attaquer)");
+            }
+        }
+    }
+
+    const dialogueUi = document.getElementById('dialogue-box');
+    const promptUi = document.getElementById('interaction-prompt');
+
+    function showDialogue(speaker, text) {
+        gameState.canMove = false;
+        gameState.dialogueOpen = true;
+        dialogueUi.innerHTML = `<strong>${speaker}:</strong><br>${text}<br><br><small>[Appuyez sur E pour fermer]</small>`;
+        dialogueUi.style.display = 'block';
+        promptUi.style.display = 'none';
+    }
+
+    function closeDialogue() {
+        gameState.canMove = true;
+        gameState.dialogueOpen = false;
+        dialogueUi.style.display = 'none';
+    }
+
+    // --- BOUCLE PRINCIPALE ---
+    const clock = new THREE.Clock();
+
+    function animate() {
+        requestAnimationFrame(animate);
+
+        const delta = clock.getDelta();
+
+        if (gameState.canMove) {
+            // Déplacement Relatif à la Caméra
+            const speed = 10 * delta;
+            const direction = new THREE.Vector3();
+
+            // On calcule la direction 'avant' de la caméra, mais projetée sur le sol (Y=0)
+            const forward = new THREE.Vector3(0, 0, -1).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotY);
+            const right = new THREE.Vector3(1, 0, 0).applyAxisAngle(new THREE.Vector3(0, 1, 0), rotY);
+
+            if (moveForward) direction.add(forward);
+            if (moveBackward) direction.sub(forward);
+            if (moveLeft) direction.sub(right);
+            if (moveRight) direction.add(right);
+
+            if (direction.length() > 0) {
+                direction.normalize();
+                playerGroup.position.add(direction.multiplyScalar(speed));
+
+                // Rotation du personnage vers la direction du mouvement
+                const targetRotation = Math.atan2(direction.x, direction.z);
+                // Lissage de la rotation
+                const currentRotation = playerGroup.rotation.y;
+                // Logique simplifiée pour la rotation
+                playerGroup.rotation.y = targetRotation;
+            }
+
+            // Animation de "bobbing" (marche)
+            if (moveForward || moveBackward || moveLeft || moveRight) {
+                playerGroup.position.y = 0 + Math.abs(Math.sin(clock.getElapsedTime() * 10)) * 0.2;
+            } else {
+                playerGroup.position.y = 0;
+            }
+        }
+
+        // Gestion Caméra (Style Zelda 3e personne)
+        // Position cible de la caméra basée sur la rotation orbitale
+        const camDist = 10;
+        const camHeight = 5;
+
+        // Convertir les angles sphériques en position cartésienne relative au joueur
+        const cx = playerGroup.position.x + camDist * Math.sin(rotY);
+        const cz = playerGroup.position.z + camDist * Math.cos(rotY);
+        const cy = playerGroup.position.y + camHeight + (rotX * 5); // Pitch
+
+        // Lissage de la caméra
+        camera.position.lerp(new THREE.Vector3(cx, cy, cz), 0.1);
+        camera.lookAt(playerGroup.position.x, playerGroup.position.y + 1, playerGroup.position.z);
+
+        // UI Prompts
+        const distGoron = playerGroup.position.distanceTo(goronGroup.position);
+        const distChest = playerGroup.position.distanceTo(itemGroup.position);
+
+        if ((distGoron < 4 || (distChest < 3 && !gameState.hasSword)) && !gameState.dialogueOpen) {
+            promptUi.style.display = 'block';
+        } else {
+            promptUi.style.display = 'none';
+        }
+
+        // Animation simple des ennemis/environnement
+        goronGroup.rotation.z = Math.sin(clock.getElapsedTime()) * 0.05; // Goron qui respire
+
+        renderer.render(scene, camera);
+    }
+
+    animate();
+
+    // Resize handler
+    window.addEventListener('resize', () => {
+        camera.aspect = window.innerWidth / window.innerHeight;
+        camera.updateProjectionMatrix();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+    });
+
+</script>
+</body>
+</html>
