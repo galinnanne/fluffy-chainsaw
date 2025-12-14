@@ -1,0 +1,2037 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Royaume d'Azeroth - MMORPG Prototype</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            overflow: hidden;
+            background: #000;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            cursor: default;
+        }
+
+        /* Écran de sélection de personnage */
+        #character-select {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            z-index: 1000;
+        }
+
+        #character-select h1 {
+            color: #ffd700;
+            font-size: 48px;
+            text-shadow: 0 0 20px #ff8c00, 2px 2px 4px #000;
+            margin-bottom: 10px;
+            font-family: 'Times New Roman', serif;
+        }
+
+        #character-select .subtitle {
+            color: #aaa;
+            font-size: 18px;
+            margin-bottom: 40px;
+        }
+
+        .class-selection {
+            display: flex;
+            gap: 30px;
+            margin-bottom: 30px;
+        }
+
+        .class-card {
+            width: 200px;
+            height: 280px;
+            background: rgba(0,0,0,0.6);
+            border: 3px solid #444;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.3s;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 20px;
+        }
+
+        .class-card:hover {
+            border-color: #ffd700;
+            transform: scale(1.05);
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.3);
+        }
+
+        .class-card.selected {
+            border-color: #ffd700;
+            box-shadow: 0 0 40px rgba(255, 215, 0, 0.5);
+        }
+
+        .class-icon {
+            width: 80px;
+            height: 80px;
+            border-radius: 50%;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 40px;
+        }
+
+        .warrior-icon { background: linear-gradient(135deg, #8b4513, #cd853f); }
+        .mage-icon { background: linear-gradient(135deg, #4169e1, #87ceeb); }
+        .hunter-icon { background: linear-gradient(135deg, #228b22, #90ee90); }
+
+        .class-card h3 {
+            color: #fff;
+            font-size: 22px;
+            margin-bottom: 10px;
+        }
+
+        .class-card p {
+            color: #aaa;
+            font-size: 12px;
+            text-align: center;
+            line-height: 1.4;
+        }
+
+        .class-stats {
+            margin-top: auto;
+            width: 100%;
+            font-size: 11px;
+            color: #888;
+        }
+
+        .class-stats div {
+            display: flex;
+            justify-content: space-between;
+            margin: 3px 0;
+        }
+
+        #start-btn {
+            padding: 15px 60px;
+            font-size: 20px;
+            background: linear-gradient(180deg, #ffd700, #ff8c00);
+            border: none;
+            border-radius: 5px;
+            cursor: pointer;
+            color: #000;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+
+        #start-btn:hover {
+            transform: scale(1.1);
+            box-shadow: 0 0 30px rgba(255, 215, 0, 0.6);
+        }
+
+        /* Interface de jeu */
+        #game-ui {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            pointer-events: none;
+            display: none;
+        }
+
+        #game-ui * {
+            pointer-events: auto;
+        }
+
+        /* Barre du joueur en haut à gauche */
+        #player-frame {
+            position: absolute;
+            top: 10px; left: 10px;
+            background: linear-gradient(180deg, rgba(30,30,30,0.95), rgba(20,20,20,0.95));
+            border: 2px solid #555;
+            border-radius: 5px;
+            padding: 10px;
+            width: 250px;
+        }
+
+        #player-frame .name {
+            color: #fff;
+            font-size: 14px;
+            font-weight: bold;
+            margin-bottom: 5px;
+        }
+
+        #player-frame .level {
+            color: #ffd700;
+            font-size: 12px;
+        }
+
+        .bar-container {
+            height: 20px;
+            background: #222;
+            border: 1px solid #444;
+            border-radius: 3px;
+            margin: 3px 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .bar-fill {
+            height: 100%;
+            transition: width 0.3s;
+        }
+
+        .health-bar .bar-fill {
+            background: linear-gradient(180deg, #4caf50, #2e7d32);
+        }
+
+        .mana-bar .bar-fill {
+            background: linear-gradient(180deg, #2196f3, #1565c0);
+        }
+
+        .rage-bar .bar-fill {
+            background: linear-gradient(180deg, #f44336, #c62828);
+        }
+
+        .xp-bar .bar-fill {
+            background: linear-gradient(180deg, #9c27b0, #6a1b9a);
+        }
+
+        .bar-text {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            color: #fff;
+            font-size: 11px;
+            text-shadow: 1px 1px 2px #000;
+        }
+
+        /* Cible */
+        #target-frame {
+            position: absolute;
+            top: 10px; left: 270px;
+            background: linear-gradient(180deg, rgba(40,20,20,0.95), rgba(30,15,15,0.95));
+            border: 2px solid #733;
+            border-radius: 5px;
+            padding: 10px;
+            width: 220px;
+            display: none;
+        }
+
+        #target-frame .name {
+            color: #f44336;
+            font-size: 14px;
+            font-weight: bold;
+        }
+
+        #target-frame .level {
+            color: #ff9800;
+            font-size: 12px;
+        }
+
+        /* Barre d'action */
+        #action-bar {
+            position: absolute;
+            bottom: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            display: flex;
+            gap: 4px;
+            background: rgba(20,20,20,0.9);
+            padding: 8px;
+            border: 2px solid #444;
+            border-radius: 5px;
+        }
+
+        .action-slot {
+            width: 50px;
+            height: 50px;
+            background: linear-gradient(180deg, #333, #222);
+            border: 2px solid #555;
+            border-radius: 5px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            cursor: pointer;
+            position: relative;
+            transition: all 0.2s;
+        }
+
+        .action-slot:hover {
+            border-color: #ffd700;
+        }
+
+        .action-slot.on-cooldown {
+            opacity: 0.5;
+        }
+
+        .action-slot .icon {
+            font-size: 24px;
+        }
+
+        .action-slot .key {
+            position: absolute;
+            bottom: 2px;
+            right: 4px;
+            font-size: 10px;
+            color: #ffd700;
+            font-weight: bold;
+        }
+
+        .action-slot .cooldown-overlay {
+            position: absolute;
+            top: 0; left: 0;
+            width: 100%; height: 100%;
+            background: rgba(0,0,0,0.7);
+            display: none;
+            align-items: center;
+            justify-content: center;
+            color: #fff;
+            font-size: 16px;
+            font-weight: bold;
+        }
+
+        .action-slot.on-cooldown .cooldown-overlay {
+            display: flex;
+        }
+
+        /* Mini-carte */
+        #minimap {
+            position: absolute;
+            top: 10px; right: 10px;
+            width: 180px;
+            height: 180px;
+            background: #1a1a1a;
+            border: 3px solid #ffd700;
+            border-radius: 50%;
+            overflow: hidden;
+        }
+
+        #minimap-canvas {
+            width: 100%;
+            height: 100%;
+        }
+
+        #minimap-zone {
+            position: absolute;
+            bottom: -25px;
+            left: 50%;
+            transform: translateX(-50%);
+            color: #ffd700;
+            font-size: 12px;
+            white-space: nowrap;
+            text-shadow: 1px 1px 2px #000;
+        }
+
+        /* Journal de quêtes */
+        #quest-tracker {
+            position: absolute;
+            top: 200px; right: 10px;
+            width: 220px;
+            background: rgba(20,20,20,0.85);
+            border: 2px solid #555;
+            border-radius: 5px;
+            padding: 10px;
+        }
+
+        #quest-tracker h4 {
+            color: #ffd700;
+            font-size: 14px;
+            margin-bottom: 8px;
+            border-bottom: 1px solid #444;
+            padding-bottom: 5px;
+        }
+
+        .quest-item {
+            margin: 8px 0;
+        }
+
+        .quest-item .title {
+            color: #ff9800;
+            font-size: 12px;
+            font-weight: bold;
+        }
+
+        .quest-item .objective {
+            color: #aaa;
+            font-size: 11px;
+            margin-left: 10px;
+        }
+
+        .quest-item .objective.completed {
+            color: #4caf50;
+            text-decoration: line-through;
+        }
+
+        /* Chat / Journal de combat */
+        #combat-log {
+            position: absolute;
+            bottom: 90px; left: 10px;
+            width: 350px;
+            height: 150px;
+            background: rgba(0,0,0,0.7);
+            border: 1px solid #444;
+            border-radius: 5px;
+            padding: 10px;
+            overflow-y: auto;
+            font-size: 11px;
+        }
+
+        #combat-log::-webkit-scrollbar {
+            width: 5px;
+        }
+
+        #combat-log::-webkit-scrollbar-thumb {
+            background: #555;
+            border-radius: 5px;
+        }
+
+        .log-entry {
+            margin: 2px 0;
+            line-height: 1.3;
+        }
+
+        .log-damage { color: #f44336; }
+        .log-heal { color: #4caf50; }
+        .log-xp { color: #9c27b0; }
+        .log-system { color: #ffd700; }
+        .log-loot { color: #ff9800; }
+
+        /* Inventaire (simple) */
+        #gold-display {
+            position: absolute;
+            bottom: 90px; right: 10px;
+            background: rgba(20,20,20,0.9);
+            border: 2px solid #ffd700;
+            border-radius: 5px;
+            padding: 8px 15px;
+            color: #ffd700;
+            font-size: 14px;
+        }
+
+        /* Popup de niveau */
+        #level-up-popup {
+            position: absolute;
+            top: 50%; left: 50%;
+            transform: translate(-50%, -50%);
+            background: linear-gradient(180deg, rgba(50,40,0,0.95), rgba(30,25,0,0.95));
+            border: 4px solid #ffd700;
+            border-radius: 10px;
+            padding: 30px 50px;
+            text-align: center;
+            display: none;
+            z-index: 100;
+            animation: levelUpPulse 0.5s ease-out;
+        }
+
+        @keyframes levelUpPulse {
+            0% { transform: translate(-50%, -50%) scale(0.5); opacity: 0; }
+            50% { transform: translate(-50%, -50%) scale(1.1); }
+            100% { transform: translate(-50%, -50%) scale(1); opacity: 1; }
+        }
+
+        #level-up-popup h2 {
+            color: #ffd700;
+            font-size: 32px;
+            text-shadow: 0 0 20px #ff8c00;
+            margin-bottom: 10px;
+        }
+
+        #level-up-popup p {
+            color: #fff;
+            font-size: 18px;
+        }
+
+        /* Dialogue PNJ */
+        #npc-dialogue {
+            position: absolute;
+            bottom: 250px;
+            left: 50%;
+            transform: translateX(-50%);
+            width: 500px;
+            background: linear-gradient(180deg, rgba(30,30,30,0.95), rgba(20,20,20,0.95));
+            border: 3px solid #ffd700;
+            border-radius: 10px;
+            padding: 20px;
+            display: none;
+        }
+
+        #npc-dialogue .npc-name {
+            color: #ffd700;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+        }
+
+        #npc-dialogue .dialogue-text {
+            color: #fff;
+            font-size: 14px;
+            line-height: 1.5;
+            margin-bottom: 15px;
+        }
+
+        #npc-dialogue .dialogue-options {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+        }
+
+        #npc-dialogue .dialogue-option {
+            background: rgba(50,50,50,0.8);
+            border: 1px solid #555;
+            border-radius: 5px;
+            padding: 8px 15px;
+            color: #4fc3f7;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        #npc-dialogue .dialogue-option:hover {
+            background: rgba(80,80,80,0.8);
+            border-color: #ffd700;
+        }
+
+        /* Contrôles */
+        #controls-help {
+            position: absolute;
+            bottom: 10px; right: 10px;
+            color: rgba(255,255,255,0.4);
+            font-size: 10px;
+            text-align: right;
+        }
+
+        /* Indicateur d'interaction */
+        #interaction-hint {
+            position: absolute;
+            top: 40%;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0,0,0,0.8);
+            color: #ffd700;
+            padding: 10px 20px;
+            border-radius: 5px;
+            display: none;
+            font-size: 14px;
+        }
+
+        /* Dégâts flottants */
+        .floating-damage {
+            position: absolute;
+            color: #ff4444;
+            font-size: 20px;
+            font-weight: bold;
+            text-shadow: 2px 2px 4px #000;
+            pointer-events: none;
+            animation: floatUp 1s ease-out forwards;
+        }
+
+        .floating-damage.crit {
+            color: #ff0000;
+            font-size: 28px;
+        }
+
+        .floating-damage.heal {
+            color: #44ff44;
+        }
+
+        @keyframes floatUp {
+            0% { opacity: 1; transform: translateY(0); }
+            100% { opacity: 0; transform: translateY(-60px); }
+        }
+    </style>
+</head>
+<body>
+
+<!-- Écran de sélection de personnage -->
+<div id="character-select">
+    <h1>Royaume d'Azeroth</h1>
+    <p class="subtitle">Choisissez votre classe et commencez l'aventure</p>
+
+    <div class="class-selection">
+        <div class="class-card" data-class="warrior">
+            <div class="class-icon warrior-icon">&#9876;</div>
+            <h3>Guerrier</h3>
+            <p>Maître des armes de mêlée. Utilise la rage générée au combat pour déclencher des attaques dévastatrices.</p>
+            <div class="class-stats">
+                <div><span>Force</span><span style="color:#4caf50">&#9733;&#9733;&#9733;&#9733;&#9734;</span></div>
+                <div><span>Endurance</span><span style="color:#4caf50">&#9733;&#9733;&#9733;&#9733;&#9733;</span></div>
+                <div><span>Magie</span><span style="color:#f44336">&#9733;&#9734;&#9734;&#9734;&#9734;</span></div>
+            </div>
+        </div>
+
+        <div class="class-card" data-class="mage">
+            <div class="class-icon mage-icon">&#10038;</div>
+            <h3>Mage</h3>
+            <p>Lanceur de sorts arcanes. Utilise le mana pour lancer de puissants sorts de feu, givre et arcane.</p>
+            <div class="class-stats">
+                <div><span>Intelligence</span><span style="color:#4caf50">&#9733;&#9733;&#9733;&#9733;&#9733;</span></div>
+                <div><span>Endurance</span><span style="color:#f44336">&#9733;&#9733;&#9734;&#9734;&#9734;</span></div>
+                <div><span>Magie</span><span style="color:#4caf50">&#9733;&#9733;&#9733;&#9733;&#9733;</span></div>
+            </div>
+        </div>
+
+        <div class="class-card" data-class="hunter">
+            <div class="class-icon hunter-icon">&#127993;</div>
+            <h3>Chasseur</h3>
+            <p>Expert du combat à distance. Utilise l'énergie pour tirer des flèches et poser des pièges.</p>
+            <div class="class-stats">
+                <div><span>Agilité</span><span style="color:#4caf50">&#9733;&#9733;&#9733;&#9733;&#9733;</span></div>
+                <div><span>Endurance</span><span style="color:#ff9800">&#9733;&#9733;&#9733;&#9734;&#9734;</span></div>
+                <div><span>Magie</span><span style="color:#f44336">&#9733;&#9733;&#9734;&#9734;&#9734;</span></div>
+            </div>
+        </div>
+    </div>
+
+    <button id="start-btn">Entrer dans le Monde</button>
+</div>
+
+<!-- Interface de jeu -->
+<div id="game-ui">
+    <!-- Frame du joueur -->
+    <div id="player-frame">
+        <div class="name"><span id="player-name">Héros</span> <span class="level">Niv. <span id="player-level">1</span></span></div>
+        <div class="bar-container health-bar">
+            <div class="bar-fill" id="player-health-bar"></div>
+            <span class="bar-text" id="player-health-text">100/100</span>
+        </div>
+        <div class="bar-container mana-bar" id="resource-bar-container">
+            <div class="bar-fill" id="player-resource-bar"></div>
+            <span class="bar-text" id="player-resource-text">100/100</span>
+        </div>
+        <div class="bar-container xp-bar">
+            <div class="bar-fill" id="player-xp-bar" style="width: 0%"></div>
+            <span class="bar-text" id="player-xp-text">0/100 XP</span>
+        </div>
+    </div>
+
+    <!-- Frame de la cible -->
+    <div id="target-frame">
+        <div class="name" id="target-name">Cible</div>
+        <div class="level">Niv. <span id="target-level">1</span></div>
+        <div class="bar-container health-bar">
+            <div class="bar-fill" id="target-health-bar"></div>
+            <span class="bar-text" id="target-health-text">100/100</span>
+        </div>
+    </div>
+
+    <!-- Mini-carte -->
+    <div id="minimap">
+        <canvas id="minimap-canvas"></canvas>
+        <div id="minimap-zone">Forêt d'Elwynn</div>
+    </div>
+
+    <!-- Quêtes -->
+    <div id="quest-tracker">
+        <h4>&#128220; Quêtes</h4>
+        <div id="quest-list"></div>
+    </div>
+
+    <!-- Journal de combat -->
+    <div id="combat-log" id="combat-log"></div>
+
+    <!-- Or -->
+    <div id="gold-display">&#129689; <span id="gold-amount">0</span></div>
+
+    <!-- Barre d'action -->
+    <div id="action-bar"></div>
+
+    <!-- Indicateur d'interaction -->
+    <div id="interaction-hint">Appuyez sur <strong>E</strong> pour interagir</div>
+
+    <!-- Dialogue PNJ -->
+    <div id="npc-dialogue">
+        <div class="npc-name" id="dialogue-npc-name">PNJ</div>
+        <div class="dialogue-text" id="dialogue-text">Texte de dialogue...</div>
+        <div class="dialogue-options" id="dialogue-options"></div>
+    </div>
+
+    <!-- Popup niveau supérieur -->
+    <div id="level-up-popup">
+        <h2>&#127881; NIVEAU SUPÉRIEUR!</h2>
+        <p>Vous êtes maintenant niveau <span id="new-level">2</span>!</p>
+    </div>
+
+    <!-- Contrôles -->
+    <div id="controls-help">
+        ZQSD: Déplacer | Souris: Caméra<br>
+        1-5: Compétences | E: Interagir | Tab: Cibler
+    </div>
+</div>
+
+<script>
+// ============================================
+// CONFIGURATION ET VARIABLES GLOBALES
+// ============================================
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87CEEB);
+scene.fog = new THREE.Fog(0x87CEEB, 50, 200);
+
+const camera = new THREE.PerspectiveCamera(60, window.innerWidth / window.innerHeight, 0.1, 1000);
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(window.innerWidth, window.innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+document.body.appendChild(renderer.domElement);
+
+// État du jeu
+let gameStarted = false;
+let selectedClass = 'warrior';
+
+const player = {
+    name: 'Héros',
+    class: 'warrior',
+    level: 1,
+    xp: 0,
+    xpToLevel: 100,
+    maxHealth: 100,
+    health: 100,
+    maxResource: 100,
+    resource: 0, // Rage pour warrior, mana pour mage
+    resourceType: 'rage',
+    gold: 0,
+    position: new THREE.Vector3(0, 0, 0),
+    rotation: 0,
+    speed: 8,
+    abilities: [],
+    cooldowns: {}
+};
+
+const enemies = [];
+const npcs = [];
+const lootItems = [];
+let targetedEnemy = null;
+
+const quests = [
+    {
+        id: 'kill_wolves',
+        title: 'La menace des loups',
+        description: 'Éliminez les loups qui terrorisent les villageois.',
+        objectives: [{ type: 'kill', target: 'Loup', current: 0, required: 5 }],
+        rewards: { xp: 150, gold: 25 },
+        completed: false,
+        active: true
+    },
+    {
+        id: 'kill_bandits',
+        title: 'Bandits des bois',
+        description: 'Des bandits ont été repérés dans la forêt.',
+        objectives: [{ type: 'kill', target: 'Bandit', current: 0, required: 3 }],
+        rewards: { xp: 200, gold: 50 },
+        completed: false,
+        active: false
+    }
+];
+
+// Compétences par classe
+const classAbilities = {
+    warrior: [
+        { id: 'strike', name: 'Frappe héroïque', icon: '&#9876;', cost: 15, costType: 'rage', damage: 25, cooldown: 0, currentCd: 0, key: '1', range: 5 },
+        { id: 'rend', name: 'Pourfendre', icon: '&#128481;', cost: 20, costType: 'rage', damage: 35, cooldown: 6, currentCd: 0, key: '2', range: 5 },
+        { id: 'whirlwind', name: 'Tourbillon', icon: '&#127744;', cost: 30, costType: 'rage', damage: 20, cooldown: 10, currentCd: 0, key: '3', range: 8, aoe: true },
+        { id: 'execute', name: 'Exécution', icon: '&#128128;', cost: 25, costType: 'rage', damage: 60, cooldown: 15, currentCd: 0, key: '4', range: 5, executeBonus: true },
+        { id: 'battlecry', name: 'Cri de guerre', icon: '&#128227;', cost: 0, costType: 'rage', damage: 0, cooldown: 30, currentCd: 0, key: '5', buff: true, buffType: 'damage', buffAmount: 1.5, buffDuration: 10 }
+    ],
+    mage: [
+        { id: 'fireball', name: 'Boule de feu', icon: '&#128293;', cost: 20, costType: 'mana', damage: 40, cooldown: 0, currentCd: 0, key: '1', range: 30 },
+        { id: 'frostbolt', name: 'Éclair de givre', icon: '&#10052;', cost: 25, costType: 'mana', damage: 30, cooldown: 3, currentCd: 0, key: '2', range: 30, slow: true },
+        { id: 'arcaneblast', name: 'Déflagration arcanique', icon: '&#10038;', cost: 35, costType: 'mana', damage: 55, cooldown: 8, currentCd: 0, key: '3', range: 25 },
+        { id: 'blizzard', name: 'Blizzard', icon: '&#127784;', cost: 50, costType: 'mana', damage: 25, cooldown: 15, currentCd: 0, key: '4', range: 20, aoe: true },
+        { id: 'evocation', name: 'Évocation', icon: '&#9733;', cost: 0, costType: 'mana', damage: 0, cooldown: 60, currentCd: 0, key: '5', restore: true, restoreAmount: 50 }
+    ],
+    hunter: [
+        { id: 'autoshot', name: 'Tir automatique', icon: '&#127993;', cost: 10, costType: 'energy', damage: 20, cooldown: 0, currentCd: 0, key: '1', range: 35 },
+        { id: 'aimedshot', name: 'Visée', icon: '&#127919;', cost: 25, costType: 'energy', damage: 50, cooldown: 6, currentCd: 0, key: '2', range: 35 },
+        { id: 'multishot', name: 'Tir multiple', icon: '&#10024;', cost: 30, costType: 'energy', damage: 25, cooldown: 10, currentCd: 0, key: '3', range: 30, aoe: true },
+        { id: 'trap', name: 'Piège explosif', icon: '&#128163;', cost: 20, costType: 'energy', damage: 40, cooldown: 20, currentCd: 0, key: '4', range: 5, trap: true },
+        { id: 'rapidfire', name: 'Tir rapide', icon: '&#9889;', cost: 0, costType: 'energy', damage: 0, cooldown: 45, currentCd: 0, key: '5', buff: true, buffType: 'attackspeed', buffAmount: 2, buffDuration: 8 }
+    ]
+};
+
+// Contrôles
+const keys = { w: false, a: false, s: false, d: false, z: false, q: false };
+let mouseX = 0, mouseY = 0;
+let cameraRotationX = 0.3;
+let cameraRotationY = 0;
+let cameraDistance = 15;
+
+// ============================================
+// ÉLÉMENTS 3D
+// ============================================
+
+// Lumières
+const ambientLight = new THREE.AmbientLight(0xffffff, 0.5);
+scene.add(ambientLight);
+
+const sunLight = new THREE.DirectionalLight(0xffffcc, 0.8);
+sunLight.position.set(100, 150, 100);
+sunLight.castShadow = true;
+sunLight.shadow.mapSize.width = 2048;
+sunLight.shadow.mapSize.height = 2048;
+sunLight.shadow.camera.near = 10;
+sunLight.shadow.camera.far = 400;
+sunLight.shadow.camera.left = -100;
+sunLight.shadow.camera.right = 100;
+sunLight.shadow.camera.top = 100;
+sunLight.shadow.camera.bottom = -100;
+scene.add(sunLight);
+
+// Matériaux
+const grassMaterial = new THREE.MeshLambertMaterial({ color: 0x3d9140 });
+const dirtMaterial = new THREE.MeshLambertMaterial({ color: 0x8b7355 });
+const stoneMaterial = new THREE.MeshLambertMaterial({ color: 0x808080 });
+const woodMaterial = new THREE.MeshLambertMaterial({ color: 0x8b4513 });
+const leavesMaterial = new THREE.MeshLambertMaterial({ color: 0x228b22 });
+const waterMaterial = new THREE.MeshPhongMaterial({ color: 0x4169e1, transparent: true, opacity: 0.7 });
+
+// Sol principal
+const groundGeometry = new THREE.PlaneGeometry(500, 500, 50, 50);
+// Ajouter du relief
+const vertices = groundGeometry.attributes.position.array;
+for (let i = 0; i < vertices.length; i += 3) {
+    if (i % 3 === 2) { // z (qui devient y après rotation)
+        const x = vertices[i - 2];
+        const y = vertices[i - 1];
+        const dist = Math.sqrt(x * x + y * y);
+        if (dist > 50) {
+            vertices[i] = Math.sin(x * 0.05) * Math.cos(y * 0.05) * 3 + Math.random() * 0.5;
+        }
+    }
+}
+groundGeometry.computeVertexNormals();
+const ground = new THREE.Mesh(groundGeometry, grassMaterial);
+ground.rotation.x = -Math.PI / 2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+// Lac
+const lakeGeometry = new THREE.CircleGeometry(20, 32);
+const lake = new THREE.Mesh(lakeGeometry, waterMaterial);
+lake.rotation.x = -Math.PI / 2;
+lake.position.set(50, 0.1, -30);
+scene.add(lake);
+
+// Fonction pour créer un arbre
+function createTree(x, z, scale = 1) {
+    const treeGroup = new THREE.Group();
+
+    // Tronc
+    const trunkGeometry = new THREE.CylinderGeometry(0.3 * scale, 0.5 * scale, 4 * scale, 8);
+    const trunk = new THREE.Mesh(trunkGeometry, woodMaterial);
+    trunk.position.y = 2 * scale;
+    trunk.castShadow = true;
+    treeGroup.add(trunk);
+
+    // Feuillage (plusieurs sphères)
+    const leavesGeometry = new THREE.SphereGeometry(2 * scale, 8, 6);
+    const leaves1 = new THREE.Mesh(leavesGeometry, leavesMaterial);
+    leaves1.position.y = 5 * scale;
+    leaves1.castShadow = true;
+    treeGroup.add(leaves1);
+
+    const leaves2 = new THREE.Mesh(new THREE.SphereGeometry(1.5 * scale, 8, 6), leavesMaterial);
+    leaves2.position.set(1 * scale, 6 * scale, 0);
+    treeGroup.add(leaves2);
+
+    const leaves3 = new THREE.Mesh(new THREE.SphereGeometry(1.5 * scale, 8, 6), leavesMaterial);
+    leaves3.position.set(-0.8 * scale, 5.5 * scale, 0.8 * scale);
+    treeGroup.add(leaves3);
+
+    treeGroup.position.set(x, 0, z);
+    scene.add(treeGroup);
+    return treeGroup;
+}
+
+// Fonction pour créer un rocher
+function createRock(x, z, scale = 1) {
+    const rockGeometry = new THREE.DodecahedronGeometry(scale, 0);
+    const rock = new THREE.Mesh(rockGeometry, stoneMaterial);
+    rock.position.set(x, scale * 0.5, z);
+    rock.rotation.set(Math.random(), Math.random(), Math.random());
+    rock.castShadow = true;
+    scene.add(rock);
+    return rock;
+}
+
+// Fonction pour créer une maison
+function createHouse(x, z, rotation = 0) {
+    const houseGroup = new THREE.Group();
+
+    // Murs
+    const wallGeometry = new THREE.BoxGeometry(8, 5, 6);
+    const wallMaterial = new THREE.MeshLambertMaterial({ color: 0xdeb887 });
+    const walls = new THREE.Mesh(wallGeometry, wallMaterial);
+    walls.position.y = 2.5;
+    walls.castShadow = true;
+    houseGroup.add(walls);
+
+    // Toit
+    const roofGeometry = new THREE.ConeGeometry(6, 3, 4);
+    const roofMaterial = new THREE.MeshLambertMaterial({ color: 0x8b0000 });
+    const roof = new THREE.Mesh(roofGeometry, roofMaterial);
+    roof.position.y = 6.5;
+    roof.rotation.y = Math.PI / 4;
+    roof.castShadow = true;
+    houseGroup.add(roof);
+
+    // Porte
+    const doorGeometry = new THREE.BoxGeometry(1.5, 3, 0.2);
+    const doorMaterial = new THREE.MeshLambertMaterial({ color: 0x4a3728 });
+    const door = new THREE.Mesh(doorGeometry, doorMaterial);
+    door.position.set(0, 1.5, 3.1);
+    houseGroup.add(door);
+
+    houseGroup.position.set(x, 0, z);
+    houseGroup.rotation.y = rotation;
+    scene.add(houseGroup);
+    return houseGroup;
+}
+
+// Générer le monde
+const trees = [];
+for (let i = 0; i < 100; i++) {
+    const angle = Math.random() * Math.PI * 2;
+    const dist = 30 + Math.random() * 150;
+    const x = Math.cos(angle) * dist;
+    const z = Math.sin(angle) * dist;
+    // Éviter le lac
+    if (Math.sqrt((x - 50) ** 2 + (z + 30) ** 2) > 25) {
+        trees.push(createTree(x, z, 0.8 + Math.random() * 0.6));
+    }
+}
+
+// Rochers
+for (let i = 0; i < 30; i++) {
+    const x = (Math.random() - 0.5) * 200;
+    const z = (Math.random() - 0.5) * 200;
+    createRock(x, z, 0.5 + Math.random() * 1.5);
+}
+
+// Village (maisons)
+createHouse(-20, 20, 0.3);
+createHouse(-35, 15, -0.2);
+createHouse(-25, 35, 0.5);
+
+// ============================================
+// PERSONNAGE JOUEUR
+// ============================================
+
+let playerMesh;
+
+function createPlayerMesh() {
+    const playerGroup = new THREE.Group();
+
+    let bodyColor, headColor;
+    switch (player.class) {
+        case 'warrior':
+            bodyColor = 0x8b4513;
+            headColor = 0xffdbac;
+            break;
+        case 'mage':
+            bodyColor = 0x4169e1;
+            headColor = 0xffdbac;
+            break;
+        case 'hunter':
+            bodyColor = 0x228b22;
+            headColor = 0xffdbac;
+            break;
+    }
+
+    // Corps
+    const bodyGeometry = new THREE.BoxGeometry(1, 1.8, 0.8);
+    const bodyMaterial = new THREE.MeshLambertMaterial({ color: bodyColor });
+    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    body.position.y = 1.4;
+    body.castShadow = true;
+    playerGroup.add(body);
+
+    // Tête
+    const headGeometry = new THREE.BoxGeometry(0.6, 0.6, 0.6);
+    const headMaterial = new THREE.MeshLambertMaterial({ color: headColor });
+    const head = new THREE.Mesh(headGeometry, headMaterial);
+    head.position.y = 2.6;
+    head.castShadow = true;
+    playerGroup.add(head);
+
+    // Jambes
+    const legGeometry = new THREE.BoxGeometry(0.35, 0.8, 0.35);
+    const legMaterial = new THREE.MeshLambertMaterial({ color: 0x2f2f2f });
+    const leftLeg = new THREE.Mesh(legGeometry, legMaterial);
+    leftLeg.position.set(-0.2, 0.4, 0);
+    playerGroup.add(leftLeg);
+
+    const rightLeg = new THREE.Mesh(legGeometry, legMaterial);
+    rightLeg.position.set(0.2, 0.4, 0);
+    playerGroup.add(rightLeg);
+
+    // Bras
+    const armGeometry = new THREE.BoxGeometry(0.25, 0.7, 0.25);
+    const leftArm = new THREE.Mesh(armGeometry, new THREE.MeshLambertMaterial({ color: headColor }));
+    leftArm.position.set(-0.65, 1.5, 0);
+    playerGroup.add(leftArm);
+
+    const rightArm = new THREE.Mesh(armGeometry, new THREE.MeshLambertMaterial({ color: headColor }));
+    rightArm.position.set(0.65, 1.5, 0);
+    playerGroup.add(rightArm);
+
+    // Arme selon classe
+    if (player.class === 'warrior') {
+        const swordGeometry = new THREE.BoxGeometry(0.1, 1.5, 0.3);
+        const swordMaterial = new THREE.MeshStandardMaterial({ color: 0xc0c0c0, metalness: 0.8 });
+        const sword = new THREE.Mesh(swordGeometry, swordMaterial);
+        sword.position.set(0.8, 1.2, 0.3);
+        sword.rotation.z = 0.3;
+        playerGroup.add(sword);
+    } else if (player.class === 'mage') {
+        const staffGeometry = new THREE.CylinderGeometry(0.05, 0.05, 2, 8);
+        const staffMaterial = new THREE.MeshLambertMaterial({ color: 0x4a2800 });
+        const staff = new THREE.Mesh(staffGeometry, staffMaterial);
+        staff.position.set(0.8, 1.5, 0);
+        playerGroup.add(staff);
+
+        const orbGeometry = new THREE.SphereGeometry(0.15, 8, 8);
+        const orbMaterial = new THREE.MeshPhongMaterial({ color: 0x00ffff, emissive: 0x0088ff });
+        const orb = new THREE.Mesh(orbGeometry, orbMaterial);
+        orb.position.set(0.8, 2.6, 0);
+        playerGroup.add(orb);
+    } else if (player.class === 'hunter') {
+        const bowGeometry = new THREE.TorusGeometry(0.4, 0.03, 8, 16, Math.PI);
+        const bowMaterial = new THREE.MeshLambertMaterial({ color: 0x8b4513 });
+        const bow = new THREE.Mesh(bowGeometry, bowMaterial);
+        bow.position.set(0.8, 1.5, 0.3);
+        bow.rotation.z = Math.PI / 2;
+        playerGroup.add(bow);
+    }
+
+    return playerGroup;
+}
+
+// ============================================
+// ENNEMIS
+// ============================================
+
+function createEnemy(type, x, z, level) {
+    const enemyGroup = new THREE.Group();
+    let color, scale, maxHealth, damage, name, xpReward, goldReward;
+
+    switch (type) {
+        case 'wolf':
+            color = 0x4a4a4a;
+            scale = 1;
+            maxHealth = 40 + level * 10;
+            damage = 5 + level * 2;
+            name = 'Loup';
+            xpReward = 20 + level * 5;
+            goldReward = 2 + level;
+            break;
+        case 'bandit':
+            color = 0x8b0000;
+            scale = 1.2;
+            maxHealth = 80 + level * 20;
+            damage = 8 + level * 3;
+            name = 'Bandit';
+            xpReward = 40 + level * 10;
+            goldReward = 10 + level * 3;
+            break;
+        case 'spider':
+            color = 0x1a1a1a;
+            scale = 0.8;
+            maxHealth = 30 + level * 8;
+            damage = 7 + level * 2;
+            name = 'Araignée';
+            xpReward = 15 + level * 5;
+            goldReward = 1 + level;
+            break;
+    }
+
+    // Corps de l'ennemi
+    if (type === 'wolf') {
+        // Corps du loup (horizontal)
+        const bodyGeometry = new THREE.BoxGeometry(1.5 * scale, 0.8 * scale, 0.7 * scale);
+        const body = new THREE.Mesh(bodyGeometry, new THREE.MeshLambertMaterial({ color }));
+        body.position.y = 0.6 * scale;
+        body.castShadow = true;
+        enemyGroup.add(body);
+
+        // Tête
+        const headGeometry = new THREE.BoxGeometry(0.5 * scale, 0.5 * scale, 0.4 * scale);
+        const head = new THREE.Mesh(headGeometry, new THREE.MeshLambertMaterial({ color }));
+        head.position.set(0.9 * scale, 0.8 * scale, 0);
+        enemyGroup.add(head);
+
+        // Queue
+        const tailGeometry = new THREE.CylinderGeometry(0.05, 0.15, 0.6, 6);
+        const tail = new THREE.Mesh(tailGeometry, new THREE.MeshLambertMaterial({ color }));
+        tail.position.set(-0.9 * scale, 0.7 * scale, 0);
+        tail.rotation.z = Math.PI / 4;
+        enemyGroup.add(tail);
+    } else if (type === 'bandit') {
+        // Corps humanoïde
+        const bodyGeometry = new THREE.BoxGeometry(0.8 * scale, 1.5 * scale, 0.5 * scale);
+        const body = new THREE.Mesh(bodyGeometry, new THREE.MeshLambertMaterial({ color }));
+        body.position.y = 1.2 * scale;
+        body.castShadow = true;
+        enemyGroup.add(body);
+
+        // Tête
+        const headGeometry = new THREE.BoxGeometry(0.5 * scale, 0.5 * scale, 0.5 * scale);
+        const head = new THREE.Mesh(headGeometry, new THREE.MeshLambertMaterial({ color: 0xdeb887 }));
+        head.position.y = 2.1 * scale;
+        enemyGroup.add(head);
+
+        // Capuche
+        const hoodGeometry = new THREE.ConeGeometry(0.4 * scale, 0.5 * scale, 6);
+        const hood = new THREE.Mesh(hoodGeometry, new THREE.MeshLambertMaterial({ color: 0x2f2f2f }));
+        hood.position.y = 2.4 * scale;
+        enemyGroup.add(hood);
+    } else if (type === 'spider') {
+        // Corps d'araignée
+        const bodyGeometry = new THREE.SphereGeometry(0.5 * scale, 8, 6);
+        const body = new THREE.Mesh(bodyGeometry, new THREE.MeshLambertMaterial({ color }));
+        body.position.y = 0.4 * scale;
+        body.castShadow = true;
+        enemyGroup.add(body);
+
+        // Pattes
+        for (let i = 0; i < 4; i++) {
+            const angle = (i / 4) * Math.PI - Math.PI / 2;
+            const legGeometry = new THREE.CylinderGeometry(0.03, 0.03, 0.8, 4);
+            const leg = new THREE.Mesh(legGeometry, new THREE.MeshLambertMaterial({ color }));
+            leg.position.set(Math.cos(angle) * 0.5, 0.2, Math.sin(angle) * 0.5);
+            leg.rotation.z = angle + Math.PI / 2;
+            enemyGroup.add(leg);
+        }
+    }
+
+    // Barre de vie au-dessus
+    const healthBarBg = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.5, 0.15),
+        new THREE.MeshBasicMaterial({ color: 0x333333 })
+    );
+    healthBarBg.position.y = 2.5 * scale;
+    healthBarBg.rotation.x = 0;
+    enemyGroup.add(healthBarBg);
+
+    const healthBar = new THREE.Mesh(
+        new THREE.PlaneGeometry(1.45, 0.12),
+        new THREE.MeshBasicMaterial({ color: 0xff0000 })
+    );
+    healthBar.position.y = 2.5 * scale;
+    healthBar.position.z = 0.01;
+    enemyGroup.add(healthBar);
+
+    enemyGroup.position.set(x, 0, z);
+    scene.add(enemyGroup);
+
+    const enemy = {
+        mesh: enemyGroup,
+        healthBar: healthBar,
+        type: type,
+        name: name,
+        level: level,
+        maxHealth: maxHealth,
+        health: maxHealth,
+        damage: damage,
+        xpReward: xpReward,
+        goldReward: goldReward,
+        position: new THREE.Vector3(x, 0, z),
+        spawnPosition: new THREE.Vector3(x, 0, z),
+        aggroRange: 15,
+        attackRange: type === 'hunter' ? 15 : 3,
+        isAggro: false,
+        lastAttack: 0,
+        attackCooldown: 2000,
+        isDead: false
+    };
+
+    enemies.push(enemy);
+    return enemy;
+}
+
+// Créer des ennemis dans le monde
+function spawnEnemies() {
+    // Loups autour du village
+    for (let i = 0; i < 8; i++) {
+        const angle = (i / 8) * Math.PI * 2;
+        const dist = 40 + Math.random() * 20;
+        createEnemy('wolf', Math.cos(angle) * dist, Math.sin(angle) * dist, 1 + Math.floor(Math.random() * 2));
+    }
+
+    // Bandits dans la forêt
+    for (let i = 0; i < 5; i++) {
+        const x = -80 + Math.random() * 40;
+        const z = -50 + Math.random() * 40;
+        createEnemy('bandit', x, z, 2 + Math.floor(Math.random() * 2));
+    }
+
+    // Araignées près du lac
+    for (let i = 0; i < 6; i++) {
+        const angle = Math.random() * Math.PI * 2;
+        const dist = 25 + Math.random() * 15;
+        createEnemy('spider', 50 + Math.cos(angle) * dist, -30 + Math.sin(angle) * dist, 1 + Math.floor(Math.random() * 2));
+    }
+}
+
+// ============================================
+// PNJ
+// ============================================
+
+function createNPC(name, x, z, dialogues, questGiver = null) {
+    const npcGroup = new THREE.Group();
+
+    // Corps
+    const bodyGeometry = new THREE.BoxGeometry(0.8, 1.6, 0.6);
+    const bodyMaterial = new THREE.MeshLambertMaterial({ color: 0x4682b4 });
+    const body = new THREE.Mesh(bodyGeometry, bodyMaterial);
+    body.position.y = 1.3;
+    body.castShadow = true;
+    npcGroup.add(body);
+
+    // Tête
+    const headGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+    const headMaterial = new THREE.MeshLambertMaterial({ color: 0xffdbac });
+    const head = new THREE.Mesh(headGeometry, headMaterial);
+    head.position.y = 2.3;
+    npcGroup.add(head);
+
+    // Point d'exclamation si donneur de quête
+    if (questGiver) {
+        const markerGeometry = new THREE.ConeGeometry(0.2, 0.5, 8);
+        const markerMaterial = new THREE.MeshBasicMaterial({ color: 0xffff00 });
+        const marker = new THREE.Mesh(markerGeometry, markerMaterial);
+        marker.position.y = 3.2;
+        marker.rotation.x = Math.PI;
+        npcGroup.add(marker);
+    }
+
+    npcGroup.position.set(x, 0, z);
+    scene.add(npcGroup);
+
+    const npc = {
+        mesh: npcGroup,
+        name: name,
+        position: new THREE.Vector3(x, 0, z),
+        dialogues: dialogues,
+        questGiver: questGiver,
+        interactionRange: 5
+    };
+
+    npcs.push(npc);
+    return npc;
+}
+
+// Créer les PNJ
+function spawnNPCs() {
+    createNPC('Garde Thomas', -22, 22, [
+        { text: "Bienvenue, aventurier ! Le village est menacé par des loups. Pouvez-vous nous aider ?", options: [
+            { text: "[Accepter la quête] Je vais m'en occuper.", action: 'accept_quest', questId: 'kill_wolves' },
+            { text: "Je reviendrai plus tard.", action: 'close' }
+        ]},
+        { text: "Merci d'avoir accepté de nous aider ! Éliminez 5 loups dans les environs.", options: [
+            { text: "Je m'en charge.", action: 'close' }
+        ]},
+        { text: "Excellent travail ! Voici votre récompense. D'autres bandits ont été repérés dans la forêt...", options: [
+            { text: "[Accepter la quête] Je continue l'aventure !", action: 'accept_quest', questId: 'kill_bandits' },
+            { text: "Merci, je me repose d'abord.", action: 'close' }
+        ]}
+    ], 'kill_wolves');
+
+    createNPC('Marchand Aldric', -30, 18, [
+        { text: "Bienvenue dans ma boutique ! Je vends les meilleures potions de la région.", options: [
+            { text: "Montrez-moi vos marchandises.", action: 'shop' },
+            { text: "Peut-être plus tard.", action: 'close' }
+        ]}
+    ], null);
+}
+
+// ============================================
+// SYSTÈME DE COMBAT
+// ============================================
+
+function useAbility(abilityIndex) {
+    const ability = player.abilities[abilityIndex];
+    if (!ability || ability.currentCd > 0) return;
+
+    // Vérifier ressource
+    if (ability.cost > player.resource && !ability.restore && !ability.buff) {
+        addCombatLog(`Pas assez de ${player.resourceType} !`, 'system');
+        return;
+    }
+
+    // Vérifier cible pour attaques
+    if (ability.damage > 0 && !ability.aoe) {
+        if (!targetedEnemy || targetedEnemy.isDead) {
+            addCombatLog("Aucune cible sélectionnée !", 'system');
+            return;
+        }
+
+        const dist = player.position.distanceTo(targetedEnemy.position);
+        if (dist > ability.range) {
+            addCombatLog("Cible trop éloignée !", 'system');
+            return;
+        }
+    }
+
+    // Consommer ressource
+    if (!ability.restore && !ability.buff) {
+        player.resource -= ability.cost;
+    }
+
+    // Appliquer effet
+    if (ability.damage > 0) {
+        let damage = ability.damage + player.level * 3;
+
+        // Bonus d'exécution si cible basse vie
+        if (ability.executeBonus && targetedEnemy && targetedEnemy.health < targetedEnemy.maxHealth * 0.2) {
+            damage *= 2;
+        }
+
+        // Critique (15% chance)
+        const isCrit = Math.random() < 0.15;
+        if (isCrit) damage *= 1.5;
+
+        if (ability.aoe) {
+            // Dégâts de zone
+            enemies.forEach(enemy => {
+                if (!enemy.isDead) {
+                    const dist = player.position.distanceTo(enemy.position);
+                    if (dist <= ability.range) {
+                        dealDamageToEnemy(enemy, damage, isCrit);
+                    }
+                }
+            });
+        } else if (targetedEnemy) {
+            dealDamageToEnemy(targetedEnemy, damage, isCrit);
+        }
+
+        addCombatLog(`${ability.name} inflige ${Math.round(damage)} dégâts${isCrit ? ' (CRITIQUE!)' : ''}`, 'damage');
+    }
+
+    if (ability.restore) {
+        player.resource = Math.min(player.maxResource, player.resource + ability.restoreAmount);
+        addCombatLog(`${ability.name} restaure ${ability.restoreAmount} ${player.resourceType}`, 'heal');
+    }
+
+    if (ability.buff) {
+        addCombatLog(`${ability.name} activé !`, 'system');
+        // Buff temporaire (simplifié)
+    }
+
+    // Démarrer cooldown
+    if (ability.cooldown > 0) {
+        ability.currentCd = ability.cooldown;
+    }
+
+    updateActionBar();
+    updateUI();
+}
+
+function dealDamageToEnemy(enemy, damage, isCrit) {
+    enemy.health -= damage;
+    enemy.isAggro = true;
+
+    // Mettre à jour barre de vie
+    const healthPercent = Math.max(0, enemy.health / enemy.maxHealth);
+    enemy.healthBar.scale.x = healthPercent;
+    enemy.healthBar.position.x = -(1 - healthPercent) * 0.725;
+
+    // Dégâts flottants
+    showFloatingDamage(enemy.position, damage, isCrit);
+
+    // Ennemi mort ?
+    if (enemy.health <= 0) {
+        killEnemy(enemy);
+    }
+
+    updateTargetFrame();
+}
+
+function killEnemy(enemy) {
+    enemy.isDead = true;
+    scene.remove(enemy.mesh);
+
+    // XP et or
+    gainXP(enemy.xpReward);
+    player.gold += enemy.goldReward;
+    addCombatLog(`+${enemy.goldReward} or`, 'loot');
+
+    // Mise à jour quêtes
+    quests.forEach(quest => {
+        if (quest.active && !quest.completed) {
+            quest.objectives.forEach(obj => {
+                if (obj.type === 'kill' && obj.target === enemy.name && obj.current < obj.required) {
+                    obj.current++;
+                    addCombatLog(`${quest.title}: ${obj.current}/${obj.required} ${obj.target}`, 'system');
+
+                    // Quête complète ?
+                    if (obj.current >= obj.required) {
+                        completeQuest(quest);
+                    }
+                }
+            });
+        }
+    });
+
+    // Retirer de la liste
+    const index = enemies.indexOf(enemy);
+    if (index > -1) enemies.splice(index, 1);
+
+    if (targetedEnemy === enemy) {
+        targetedEnemy = null;
+        document.getElementById('target-frame').style.display = 'none';
+    }
+
+    // Respawn après 30 secondes
+    setTimeout(() => {
+        createEnemy(enemy.type, enemy.spawnPosition.x, enemy.spawnPosition.z, enemy.level);
+    }, 30000);
+
+    updateQuestTracker();
+    updateUI();
+}
+
+function gainXP(amount) {
+    player.xp += amount;
+    addCombatLog(`+${amount} XP`, 'xp');
+
+    // Level up ?
+    while (player.xp >= player.xpToLevel) {
+        player.xp -= player.xpToLevel;
+        player.level++;
+        player.xpToLevel = Math.floor(player.xpToLevel * 1.5);
+
+        // Augmenter stats
+        player.maxHealth += 20;
+        player.health = player.maxHealth;
+        player.maxResource += 10;
+
+        // Afficher popup
+        showLevelUpPopup();
+        addCombatLog(`NIVEAU ${player.level} ATTEINT !`, 'system');
+    }
+
+    updateUI();
+}
+
+function completeQuest(quest) {
+    quest.completed = true;
+    gainXP(quest.rewards.xp);
+    player.gold += quest.rewards.gold;
+    addCombatLog(`Quête "${quest.title}" complétée ! +${quest.rewards.gold} or`, 'loot');
+
+    // Activer quête suivante
+    const nextQuest = quests.find(q => !q.active && !q.completed);
+    if (nextQuest) nextQuest.active = true;
+
+    updateUI();
+}
+
+// IA des ennemis
+function updateEnemies(delta) {
+    const now = Date.now();
+
+    enemies.forEach(enemy => {
+        if (enemy.isDead) return;
+
+        const dist = player.position.distanceTo(enemy.position);
+
+        // Aggro si joueur proche
+        if (dist < enemy.aggroRange) {
+            enemy.isAggro = true;
+        }
+
+        if (enemy.isAggro) {
+            // Faire face au joueur
+            const dir = new THREE.Vector3()
+                .subVectors(player.position, enemy.position)
+                .normalize();
+            enemy.mesh.rotation.y = Math.atan2(dir.x, dir.z);
+
+            // Se déplacer vers le joueur si hors de portée d'attaque
+            if (dist > enemy.attackRange) {
+                enemy.position.add(dir.multiplyScalar(3 * delta));
+                enemy.mesh.position.copy(enemy.position);
+            } else {
+                // Attaquer
+                if (now - enemy.lastAttack > enemy.attackCooldown) {
+                    enemy.lastAttack = now;
+
+                    // Infliger dégâts au joueur
+                    const damage = enemy.damage;
+                    player.health -= damage;
+                    addCombatLog(`${enemy.name} vous inflige ${damage} dégâts`, 'damage');
+
+                    // Générer rage pour warrior
+                    if (player.resourceType === 'rage') {
+                        player.resource = Math.min(player.maxResource, player.resource + 10);
+                    }
+
+                    // Mort du joueur ?
+                    if (player.health <= 0) {
+                        player.health = 0;
+                        addCombatLog("Vous êtes mort ! Résurrection...", 'system');
+                        setTimeout(respawnPlayer, 3000);
+                    }
+
+                    updateUI();
+                }
+            }
+        }
+
+        // Faire tourner barre de vie vers caméra
+        enemy.healthBar.parent.children.forEach(child => {
+            if (child.geometry && child.geometry.type === 'PlaneGeometry') {
+                child.lookAt(camera.position);
+            }
+        });
+    });
+}
+
+function respawnPlayer() {
+    player.health = player.maxHealth;
+    player.resource = player.resourceType === 'mana' ? player.maxResource : 0;
+    player.position.set(0, 0, 0);
+    playerMesh.position.copy(player.position);
+
+    // Reset aggro
+    enemies.forEach(e => {
+        e.isAggro = false;
+        e.position.copy(e.spawnPosition);
+        e.mesh.position.copy(e.spawnPosition);
+    });
+
+    updateUI();
+}
+
+// ============================================
+// INTERFACE UTILISATEUR
+// ============================================
+
+function updateUI() {
+    // Santé
+    const healthPercent = (player.health / player.maxHealth) * 100;
+    document.getElementById('player-health-bar').style.width = healthPercent + '%';
+    document.getElementById('player-health-text').textContent = `${Math.round(player.health)}/${player.maxHealth}`;
+
+    // Ressource
+    const resourcePercent = (player.resource / player.maxResource) * 100;
+    document.getElementById('player-resource-bar').style.width = resourcePercent + '%';
+    document.getElementById('player-resource-text').textContent = `${Math.round(player.resource)}/${player.maxResource}`;
+
+    // XP
+    const xpPercent = (player.xp / player.xpToLevel) * 100;
+    document.getElementById('player-xp-bar').style.width = xpPercent + '%';
+    document.getElementById('player-xp-text').textContent = `${player.xp}/${player.xpToLevel} XP`;
+
+    // Niveau
+    document.getElementById('player-level').textContent = player.level;
+
+    // Or
+    document.getElementById('gold-amount').textContent = player.gold;
+}
+
+function updateTargetFrame() {
+    if (!targetedEnemy || targetedEnemy.isDead) {
+        document.getElementById('target-frame').style.display = 'none';
+        return;
+    }
+
+    document.getElementById('target-frame').style.display = 'block';
+    document.getElementById('target-name').textContent = targetedEnemy.name;
+    document.getElementById('target-level').textContent = targetedEnemy.level;
+
+    const healthPercent = (targetedEnemy.health / targetedEnemy.maxHealth) * 100;
+    document.getElementById('target-health-bar').style.width = healthPercent + '%';
+    document.getElementById('target-health-text').textContent = `${Math.round(targetedEnemy.health)}/${targetedEnemy.maxHealth}`;
+}
+
+function createActionBar() {
+    const actionBar = document.getElementById('action-bar');
+    actionBar.innerHTML = '';
+
+    player.abilities.forEach((ability, index) => {
+        const slot = document.createElement('div');
+        slot.className = 'action-slot';
+        slot.innerHTML = `
+            <span class="icon">${ability.icon}</span>
+            <span class="key">${ability.key}</span>
+            <div class="cooldown-overlay"></div>
+        `;
+        slot.onclick = () => useAbility(index);
+        slot.title = `${ability.name}\nCoût: ${ability.cost} ${ability.costType}\nDégâts: ${ability.damage}\nRecharge: ${ability.cooldown}s`;
+        actionBar.appendChild(slot);
+    });
+}
+
+function updateActionBar() {
+    const slots = document.querySelectorAll('.action-slot');
+    player.abilities.forEach((ability, index) => {
+        if (slots[index]) {
+            const overlay = slots[index].querySelector('.cooldown-overlay');
+            if (ability.currentCd > 0) {
+                slots[index].classList.add('on-cooldown');
+                overlay.textContent = Math.ceil(ability.currentCd);
+            } else {
+                slots[index].classList.remove('on-cooldown');
+            }
+        }
+    });
+}
+
+function updateQuestTracker() {
+    const questList = document.getElementById('quest-list');
+    questList.innerHTML = '';
+
+    quests.filter(q => q.active).forEach(quest => {
+        const questDiv = document.createElement('div');
+        questDiv.className = 'quest-item';
+
+        let objectivesHtml = '';
+        quest.objectives.forEach(obj => {
+            const isComplete = obj.current >= obj.required;
+            objectivesHtml += `<div class="objective ${isComplete ? 'completed' : ''}">${obj.target}: ${obj.current}/${obj.required}</div>`;
+        });
+
+        questDiv.innerHTML = `
+            <div class="title">${quest.completed ? '&#10004; ' : ''}${quest.title}</div>
+            ${objectivesHtml}
+        `;
+        questList.appendChild(questDiv);
+    });
+}
+
+const combatLogEl = document.getElementById('combat-log');
+
+function addCombatLog(message, type) {
+    const entry = document.createElement('div');
+    entry.className = `log-entry log-${type}`;
+    entry.textContent = message;
+    combatLogEl.appendChild(entry);
+    combatLogEl.scrollTop = combatLogEl.scrollHeight;
+
+    // Limiter à 50 entrées
+    while (combatLogEl.children.length > 50) {
+        combatLogEl.removeChild(combatLogEl.firstChild);
+    }
+}
+
+function showFloatingDamage(position, damage, isCrit) {
+    const div = document.createElement('div');
+    div.className = 'floating-damage' + (isCrit ? ' crit' : '');
+    div.textContent = Math.round(damage);
+
+    // Convertir position 3D en 2D
+    const vector = position.clone();
+    vector.y += 2;
+    vector.project(camera);
+
+    const x = (vector.x * 0.5 + 0.5) * window.innerWidth;
+    const y = (-(vector.y * 0.5) + 0.5) * window.innerHeight;
+
+    div.style.left = x + 'px';
+    div.style.top = y + 'px';
+
+    document.body.appendChild(div);
+    setTimeout(() => div.remove(), 1000);
+}
+
+function showLevelUpPopup() {
+    const popup = document.getElementById('level-up-popup');
+    document.getElementById('new-level').textContent = player.level;
+    popup.style.display = 'block';
+
+    setTimeout(() => {
+        popup.style.display = 'none';
+    }, 3000);
+}
+
+// Dialogue PNJ
+let currentNPC = null;
+let dialogueState = 0;
+
+function showNPCDialogue(npc) {
+    currentNPC = npc;
+
+    // Déterminer quel dialogue montrer
+    let dialogueIndex = 0;
+    if (npc.questGiver) {
+        const quest = quests.find(q => q.id === npc.questGiver);
+        if (quest) {
+            if (quest.completed) dialogueIndex = 2;
+            else if (quest.active) dialogueIndex = 1;
+            else dialogueIndex = 0;
+        }
+    }
+
+    const dialogue = npc.dialogues[Math.min(dialogueIndex, npc.dialogues.length - 1)];
+
+    document.getElementById('dialogue-npc-name').textContent = npc.name;
+    document.getElementById('dialogue-text').textContent = dialogue.text;
+
+    const optionsDiv = document.getElementById('dialogue-options');
+    optionsDiv.innerHTML = '';
+
+    dialogue.options.forEach(option => {
+        const btn = document.createElement('div');
+        btn.className = 'dialogue-option';
+        btn.textContent = option.text;
+        btn.onclick = () => handleDialogueOption(option);
+        optionsDiv.appendChild(btn);
+    });
+
+    document.getElementById('npc-dialogue').style.display = 'block';
+}
+
+function handleDialogueOption(option) {
+    switch (option.action) {
+        case 'accept_quest':
+            const quest = quests.find(q => q.id === option.questId);
+            if (quest && !quest.active) {
+                quest.active = true;
+                addCombatLog(`Nouvelle quête: ${quest.title}`, 'system');
+                updateQuestTracker();
+            }
+            closeDialogue();
+            break;
+        case 'shop':
+            addCombatLog("Boutique non disponible dans ce prototype.", 'system');
+            closeDialogue();
+            break;
+        case 'close':
+        default:
+            closeDialogue();
+    }
+}
+
+function closeDialogue() {
+    document.getElementById('npc-dialogue').style.display = 'none';
+    currentNPC = null;
+}
+
+// Mini-carte
+const minimapCanvas = document.getElementById('minimap-canvas');
+const minimapCtx = minimapCanvas.getContext('2d');
+minimapCanvas.width = 180;
+minimapCanvas.height = 180;
+
+function updateMinimap() {
+    minimapCtx.fillStyle = '#1a3d1a';
+    minimapCtx.fillRect(0, 0, 180, 180);
+
+    const scale = 1.5;
+    const centerX = 90;
+    const centerY = 90;
+
+    // Lac
+    minimapCtx.fillStyle = '#4169e1';
+    minimapCtx.beginPath();
+    minimapCtx.arc(centerX + (50 - player.position.x) * scale, centerY + (-30 - player.position.z) * scale, 15, 0, Math.PI * 2);
+    minimapCtx.fill();
+
+    // Maisons
+    minimapCtx.fillStyle = '#deb887';
+    [[-20, 20], [-35, 15], [-25, 35]].forEach(([x, z]) => {
+        minimapCtx.fillRect(
+            centerX + (x - player.position.x) * scale - 3,
+            centerY + (z - player.position.z) * scale - 3,
+            6, 6
+        );
+    });
+
+    // Ennemis (points rouges)
+    minimapCtx.fillStyle = '#ff4444';
+    enemies.forEach(enemy => {
+        if (!enemy.isDead) {
+            const ex = centerX + (enemy.position.x - player.position.x) * scale;
+            const ey = centerY + (enemy.position.z - player.position.z) * scale;
+            if (ex > 0 && ex < 180 && ey > 0 && ey < 180) {
+                minimapCtx.beginPath();
+                minimapCtx.arc(ex, ey, 3, 0, Math.PI * 2);
+                minimapCtx.fill();
+            }
+        }
+    });
+
+    // PNJ (points jaunes)
+    minimapCtx.fillStyle = '#ffff00';
+    npcs.forEach(npc => {
+        const nx = centerX + (npc.position.x - player.position.x) * scale;
+        const ny = centerY + (npc.position.z - player.position.z) * scale;
+        if (nx > 0 && nx < 180 && ny > 0 && ny < 180) {
+            minimapCtx.beginPath();
+            minimapCtx.arc(nx, ny, 4, 0, Math.PI * 2);
+            minimapCtx.fill();
+        }
+    });
+
+    // Joueur (centre, flèche)
+    minimapCtx.fillStyle = '#00ff00';
+    minimapCtx.save();
+    minimapCtx.translate(centerX, centerY);
+    minimapCtx.rotate(-player.rotation);
+    minimapCtx.beginPath();
+    minimapCtx.moveTo(0, -8);
+    minimapCtx.lineTo(-5, 5);
+    minimapCtx.lineTo(5, 5);
+    minimapCtx.closePath();
+    minimapCtx.fill();
+    minimapCtx.restore();
+}
+
+// ============================================
+// CONTRÔLES
+// ============================================
+
+document.addEventListener('keydown', (e) => {
+    if (!gameStarted) return;
+    if (currentNPC) return;
+
+    switch(e.code) {
+        case 'KeyW': case 'KeyZ': keys.w = true; break;
+        case 'KeyA': case 'KeyQ': keys.a = true; break;
+        case 'KeyS': keys.s = true; break;
+        case 'KeyD': keys.d = true; break;
+        case 'Digit1': useAbility(0); break;
+        case 'Digit2': useAbility(1); break;
+        case 'Digit3': useAbility(2); break;
+        case 'Digit4': useAbility(3); break;
+        case 'Digit5': useAbility(4); break;
+        case 'Tab':
+            e.preventDefault();
+            selectNextTarget();
+            break;
+        case 'KeyE':
+            tryInteract();
+            break;
+        case 'Escape':
+            if (currentNPC) closeDialogue();
+            break;
+    }
+});
+
+document.addEventListener('keyup', (e) => {
+    switch(e.code) {
+        case 'KeyW': case 'KeyZ': keys.w = false; break;
+        case 'KeyA': case 'KeyQ': keys.a = false; break;
+        case 'KeyS': keys.s = false; break;
+        case 'KeyD': keys.d = false; break;
+    }
+});
+
+document.addEventListener('mousemove', (e) => {
+    if (!gameStarted) return;
+    if (document.pointerLockElement === renderer.domElement) {
+        cameraRotationY -= e.movementX * 0.003;
+        cameraRotationX += e.movementY * 0.003;
+        cameraRotationX = Math.max(0.1, Math.min(1.2, cameraRotationX));
+    }
+});
+
+renderer.domElement.addEventListener('click', () => {
+    if (gameStarted && !currentNPC) {
+        renderer.domElement.requestPointerLock();
+    }
+});
+
+document.addEventListener('wheel', (e) => {
+    cameraDistance += e.deltaY * 0.01;
+    cameraDistance = Math.max(5, Math.min(30, cameraDistance));
+});
+
+function selectNextTarget() {
+    const nearbyEnemies = enemies.filter(e => !e.isDead && player.position.distanceTo(e.position) < 40);
+
+    if (nearbyEnemies.length === 0) {
+        targetedEnemy = null;
+    } else {
+        const currentIndex = nearbyEnemies.indexOf(targetedEnemy);
+        targetedEnemy = nearbyEnemies[(currentIndex + 1) % nearbyEnemies.length];
+    }
+
+    updateTargetFrame();
+}
+
+function tryInteract() {
+    // Vérifier PNJ à proximité
+    for (const npc of npcs) {
+        if (player.position.distanceTo(npc.position) < npc.interactionRange) {
+            showNPCDialogue(npc);
+            return;
+        }
+    }
+}
+
+// ============================================
+// SÉLECTION DE PERSONNAGE
+// ============================================
+
+document.querySelectorAll('.class-card').forEach(card => {
+    card.addEventListener('click', () => {
+        document.querySelectorAll('.class-card').forEach(c => c.classList.remove('selected'));
+        card.classList.add('selected');
+        selectedClass = card.dataset.class;
+    });
+});
+
+document.getElementById('start-btn').addEventListener('click', () => {
+    startGame(selectedClass);
+});
+
+function startGame(playerClass) {
+    player.class = playerClass;
+    player.abilities = [...classAbilities[playerClass]];
+
+    // Configuration selon classe
+    switch (playerClass) {
+        case 'warrior':
+            player.maxHealth = 120;
+            player.resourceType = 'rage';
+            player.resource = 0;
+            player.maxResource = 100;
+            document.getElementById('resource-bar-container').className = 'bar-container rage-bar';
+            break;
+        case 'mage':
+            player.maxHealth = 80;
+            player.resourceType = 'mana';
+            player.resource = 100;
+            player.maxResource = 100;
+            document.getElementById('resource-bar-container').className = 'bar-container mana-bar';
+            break;
+        case 'hunter':
+            player.maxHealth = 100;
+            player.resourceType = 'energy';
+            player.resource = 100;
+            player.maxResource = 100;
+            document.getElementById('resource-bar-container').className = 'bar-container mana-bar';
+            break;
+    }
+
+    player.health = player.maxHealth;
+
+    // Créer personnage
+    playerMesh = createPlayerMesh();
+    scene.add(playerMesh);
+
+    // Créer ennemis et PNJ
+    spawnEnemies();
+    spawnNPCs();
+
+    // Interface
+    createActionBar();
+    updateQuestTracker();
+    updateUI();
+
+    // Masquer sélection, afficher jeu
+    document.getElementById('character-select').style.display = 'none';
+    document.getElementById('game-ui').style.display = 'block';
+
+    gameStarted = true;
+
+    addCombatLog(`Bienvenue, ${playerClass} ! Parlez au Garde Thomas pour commencer.`, 'system');
+
+    animate();
+}
+
+// ============================================
+// BOUCLE PRINCIPALE
+// ============================================
+
+const clock = new THREE.Clock();
+
+function animate() {
+    if (!gameStarted) return;
+    requestAnimationFrame(animate);
+
+    const delta = clock.getDelta();
+
+    // Déplacement joueur
+    if (!currentNPC) {
+        const moveDir = new THREE.Vector3();
+        const forward = new THREE.Vector3(
+            -Math.sin(cameraRotationY),
+            0,
+            -Math.cos(cameraRotationY)
+        );
+        const right = new THREE.Vector3(
+            Math.cos(cameraRotationY),
+            0,
+            -Math.sin(cameraRotationY)
+        );
+
+        if (keys.w) moveDir.add(forward);
+        if (keys.s) moveDir.sub(forward);
+        if (keys.a) moveDir.sub(right);
+        if (keys.d) moveDir.add(right);
+
+        if (moveDir.length() > 0) {
+            moveDir.normalize();
+            player.position.add(moveDir.clone().multiplyScalar(player.speed * delta));
+            player.rotation = Math.atan2(moveDir.x, moveDir.z);
+            playerMesh.rotation.y = player.rotation;
+
+            // Régénération de mana/énergie en mouvement
+            if (player.resourceType !== 'rage') {
+                player.resource = Math.min(player.maxResource, player.resource + 5 * delta);
+            }
+        }
+
+        playerMesh.position.copy(player.position);
+    }
+
+    // Caméra
+    const camX = player.position.x + Math.sin(cameraRotationY) * cameraDistance * Math.cos(cameraRotationX);
+    const camZ = player.position.z + Math.cos(cameraRotationY) * cameraDistance * Math.cos(cameraRotationX);
+    const camY = player.position.y + cameraDistance * Math.sin(cameraRotationX) + 2;
+
+    camera.position.lerp(new THREE.Vector3(camX, camY, camZ), 0.1);
+    camera.lookAt(player.position.x, player.position.y + 1.5, player.position.z);
+
+    // IA ennemis
+    updateEnemies(delta);
+
+    // Cooldowns
+    player.abilities.forEach(ability => {
+        if (ability.currentCd > 0) {
+            ability.currentCd -= delta;
+            if (ability.currentCd < 0) ability.currentCd = 0;
+        }
+    });
+    updateActionBar();
+
+    // Régénération passive
+    if (player.resourceType === 'mana' || player.resourceType === 'energy') {
+        player.resource = Math.min(player.maxResource, player.resource + 3 * delta);
+    }
+
+    // Régénération santé hors combat
+    const inCombat = enemies.some(e => e.isAggro && !e.isDead);
+    if (!inCombat && player.health < player.maxHealth) {
+        player.health = Math.min(player.maxHealth, player.health + 5 * delta);
+    }
+
+    // UI
+    updateUI();
+    updateMinimap();
+
+    // Indicateur d'interaction
+    const nearNPC = npcs.find(n => player.position.distanceTo(n.position) < n.interactionRange);
+    document.getElementById('interaction-hint').style.display = nearNPC && !currentNPC ? 'block' : 'none';
+
+    renderer.render(scene, camera);
+}
+
+// Resize
+window.addEventListener('resize', () => {
+    camera.aspect = window.innerWidth / window.innerHeight;
+    camera.updateProjectionMatrix();
+    renderer.setSize(window.innerWidth, window.innerHeight);
+});
+
+// Sélectionner classe par défaut
+document.querySelector('.class-card[data-class="warrior"]').classList.add('selected');
+</script>
+
+</body>
+</html>
